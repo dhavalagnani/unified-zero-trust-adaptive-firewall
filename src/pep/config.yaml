@@ -1,0 +1,163 @@
+# src/pep/config.yaml
+#
+# Purpose: Configuration file for Policy Enforcement Point (PEP)
+# Context: Central configuration for PEP service including Keycloak integration,
+#          backend service URLs, and operational parameters
+#
+# Usage: Loaded by app.py on startup. Override with environment variables or
+#        specify custom path with PEP_CONFIG environment variable
+
+# Keycloak/OIDC configuration
+keycloak:
+  url: "http://localhost:8080"
+  realm: "uztaf"
+  client_id: "pep-client"
+  # Client secret (can also be set via KEYCLOAK_CLIENT_SECRET env var)
+  client_secret: "${KEYCLOAK_CLIENT_SECRET}"
+
+  # Token validation settings
+  jwt_algorithm: "RS256"
+  validate_audience: true
+  validate_issuer: true
+
+  # JWKS cache settings (seconds)
+  jwks_cache_duration: 3600
+
+# Backend service configuration
+backend:
+  # URL of the backend service to proxy to
+  url: "http://localhost:8080"
+
+  # Request timeout (seconds)
+  timeout: 30
+
+  # Connection pool settings
+  max_connections: 100
+  max_keepalive_connections: 20
+
+  # Health check settings
+  health_check_enabled: true
+  health_check_path: "/health"
+  health_check_interval: 30
+
+# PEP server configuration
+pep:
+  # Listen address and port
+  host: "0.0.0.0"
+  port: 8000
+
+  # Number of worker processes (for production with gunicorn/uvicorn)
+  workers: 4
+
+  # Logging configuration
+  log_level: "INFO" # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_format: "json" # json or text
+  log_file: "/var/log/uztaf/pep.log"
+
+  # Enable request logging
+  log_requests: true
+
+  # CORS settings
+  cors_enabled: true
+  cors_origins:
+    - "*" # Configure appropriately for production
+  cors_allow_credentials: true
+  cors_allow_methods:
+    - "GET"
+    - "POST"
+    - "PUT"
+    - "DELETE"
+    - "PATCH"
+    - "OPTIONS"
+  cors_allow_headers:
+    - "*"
+
+# Authorization policies
+# Context: Define fine-grained access control policies
+authorization:
+  # Enable policy enforcement
+  enabled: false # Set to true when policies are configured
+
+  # Default deny mode (if true, deny access unless explicitly allowed)
+  default_deny: false
+
+  # Path-based policies
+  policies:
+    # Example: Require admin role for /admin paths
+    - path: "/admin/*"
+      roles:
+        - "admin"
+      methods:
+        - "GET"
+        - "POST"
+        - "PUT"
+        - "DELETE"
+
+    # Example: Require user or admin role for /api paths
+    - path: "/api/*"
+      roles:
+        - "user"
+        - "admin"
+      methods:
+        - "GET"
+        - "POST"
+
+    # Example: Public access to specific paths
+    - path: "/public/*"
+      public: true
+      methods:
+        - "GET"
+
+# Rate limiting (optional)
+rate_limiting:
+  enabled: false
+
+  # Requests per minute per user
+  requests_per_minute: 100
+
+  # Burst allowance
+  burst: 20
+
+# Metrics and monitoring
+metrics:
+  enabled: true
+  port: 9090
+  path: "/metrics"
+
+  # Prometheus push gateway (optional)
+  push_gateway_url: ""
+  push_interval: 60
+
+# TLS/SSL configuration (for production)
+tls:
+  enabled: false
+  cert_file: "/etc/uztaf/certs/server.crt"
+  key_file: "/etc/uztaf/certs/server.key"
+  ca_file: "/etc/uztaf/certs/ca.crt"
+
+# Integration with correlation engine
+correlation:
+  # WebSocket URL for real-time policy updates
+  ws_url: "ws://correlation-server:5000/ws"
+
+  # Report access attempts to correlation engine
+  report_access: true
+
+  # API endpoint for correlation engine
+  api_url: "http://correlation-server:5000/api"
+
+# Development/Debug settings
+development:
+  # Enable debug mode (more verbose logging, detailed errors)
+  debug: false
+
+  # Enable hot reload
+  reload: false
+
+  # Mock authentication (bypass Keycloak for testing)
+  mock_auth: false
+  mock_user:
+    username: "test-user"
+    email: "test@example.com"
+    roles:
+      - "user"

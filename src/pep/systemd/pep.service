@@ -1,0 +1,70 @@
+[Unit]
+# src/pep/systemd/pep.service
+#
+# Purpose: Systemd service unit for PEP (Policy Enforcement Point)
+# Context: Manages the lifecycle of the PEP FastAPI application as a system service
+#          Ensures automatic startup on boot and restart on failure
+#
+# Installation:
+#   sudo cp pep.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable pep.service
+#   sudo systemctl start pep.service
+#
+# Usage:
+#   sudo systemctl status pep
+#   sudo systemctl restart pep
+#   sudo journalctl -u pep -f
+
+Description=UZTAF Policy Enforcement Point (PEP)
+Documentation=https://github.com/uztaf/unified-zero-trust-adaptive-firewall
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+User=pep
+Group=pep
+WorkingDirectory=/opt/uztaf/pep
+
+# Environment configuration
+Environment="PATH=/opt/uztaf/pep/venv/bin:/usr/local/bin:/usr/bin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+EnvironmentFile=-/etc/uztaf/pep.env
+
+# Start the PEP service using uvicorn with systemd notify support
+ExecStart=/opt/uztaf/pep/venv/bin/uvicorn app:app \
+    --host ${PEP_HOST:-0.0.0.0} \
+    --port ${PEP_PORT:-8000} \
+    --workers ${PEP_WORKERS:-4} \
+    --log-level ${PEP_LOG_LEVEL:-info} \
+    --access-log \
+    --log-config /etc/uztaf/logging.conf
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=60
+StartLimitBurst=3
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/log/uztaf /var/lib/uztaf
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=512
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pep
+
+[Install]
+WantedBy=multi-user.target

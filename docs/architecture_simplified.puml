@@ -1,0 +1,26 @@
+@startuml UZTAF Simplified
+!theme plain
+
+' Purpose: Simplified architecture for quick understanding
+
+title UZTAF - Simplified View
+
+actor User
+entity "PEP\n(Auth Proxy)" as PEP
+entity "Keycloak\n(Identity)" as KC
+entity "Backend\nServices" as Backend
+entity "IDS/IPS\n(Zeek/Suricata)" as IDS
+entity "Correlation\nEngine" as Corr
+entity "Agents\n(nftables)" as Agent
+
+User -> PEP : Request
+PEP -> KC : Validate
+KC -> PEP : OK
+PEP -> Backend : Forward
+
+IDS -> Corr : Events
+Corr -> Corr : Analyze
+Corr -> Agent : Block IP
+Agent -> Agent : Apply Rule
+
+@enduml

@@ -1,0 +1,19 @@
+[Unit]
+# src/correlation/systemd/correlation.service
+# Systemd service for correlation engine
+
+Description=UZTAF Correlation Engine
+After=network.target
+
+[Service]
+Type=simple
+User=correlation
+Group=correlation
+WorkingDirectory=/opt/uztaf/correlation
+Environment="PATH=/opt/uztaf/correlation/venv/bin:/usr/local/bin:/usr/bin"
+ExecStart=/opt/uztaf/correlation/venv/bin/python engine.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

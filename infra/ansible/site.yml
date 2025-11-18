@@ -1,0 +1,395 @@
+---
+# infra/ansible/site.yml
+#
+# Purpose: Main Ansible playbook for deploying the entire UZTAF infrastructure
+# Context: This is the master playbook that orchestrates the deployment of all
+#          components including PEP, correlation engine, agents, Keycloak, and
+#          monitoring infrastructure. It ensures proper dependency ordering and
+#          configuration management across the entire stack.
+#
+# Usage: ansible-playbook -i infra/ansible/hosts.ini infra/ansible/site.yml
+#        ansible-playbook -i infra/ansible/hosts.ini infra/ansible/site.yml --tags "pep,correlation"
+#        ansible-playbook -i infra/ansible/hosts.ini infra/ansible/site.yml --limit pep_servers
+
+- name: UZTAF Infrastructure Deployment
+  hosts: all
+  gather_facts: yes
+  become: yes
+
+  vars:
+    uztaf_version: "1.0.0"
+    uztaf_base_dir: "/opt/uztaf"
+    uztaf_config_dir: "/etc/uztaf"
+    uztaf_log_dir: "/var/log/uztaf"
+    uztaf_data_dir: "/var/lib/uztaf"
+    python_version: "3.9"
+
+  tasks:
+    - name: Display deployment information
+      debug:
+        msg: "Deploying UZTAF version {{ uztaf_version }} on {{ inventory_hostname }}"
+
+    - name: Update package cache (Debian/Ubuntu)
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+
+    - name: Install common dependencies
+      apt:
+        name:
+          - python3
+          - python3-pip
+          - python3-venv
+          - git
+          - curl
+          - wget
+          - jq
+          - net-tools
+          - ca-certificates
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Create UZTAF directories
+      file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+        owner: root
+        group: root
+      loop:
+        - "{{ uztaf_base_dir }}"
+        - "{{ uztaf_config_dir }}"
+        - "{{ uztaf_log_dir }}"
+        - "{{ uztaf_data_dir }}"
+
+# ============================================================================
+# Keycloak Identity Server Setup
+# ============================================================================
+- name: Deploy Keycloak Identity Server
+  hosts: keycloak_servers
+  become: yes
+  tags: ["keycloak"]
+
+  vars:
+    keycloak_version: "23.0.0"
+    keycloak_install_dir: "/opt/keycloak"
+    keycloak_admin_user: "admin"
+    keycloak_admin_password: "{{ lookup('env', 'KEYCLOAK_ADMIN_PASSWORD') | default('changeme', true) }}"
+
+  tasks:
+    - name: Install Java (required for Keycloak)
+      apt:
+        name:
+          - openjdk-17-jdk
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Create Keycloak user
+      user:
+        name: keycloak
+        system: yes
+        shell: /bin/false
+        home: "{{ keycloak_install_dir }}"
+
+    - name: Display Keycloak deployment message
+      debug:
+        msg: "Keycloak would be downloaded and configured here. See infra/keycloak/install_keycloak.md for manual steps."
+
+    - name: Copy Keycloak realm configuration
+      copy:
+        src: "{{ playbook_dir }}/../keycloak/realm-export.json"
+        dest: "{{ keycloak_install_dir }}/realm-export.json"
+        owner: keycloak
+        group: keycloak
+        mode: "0644"
+      ignore_errors: yes
+
+# ============================================================================
+# Network Monitoring Setup (Zeek & Suricata)
+# ============================================================================
+- name: Deploy Network Monitoring Infrastructure
+  hosts: monitoring_servers
+  become: yes
+  tags: ["monitoring"]
+
+  tasks:
+    - name: Install Zeek
+      apt:
+        name:
+          - zeek
+        state: present
+      when: "'zeek' in inventory_hostname"
+      ignore_errors: yes
+
+    - name: Install Suricata
+      apt:
+        name:
+          - suricata
+        state: present
+      when: "'suricata' in inventory_hostname"
+      ignore_errors: yes
+
+    - name: Configure Zeek logging
+      lineinfile:
+        path: /etc/zeek/node.cfg
+        regexp: "^interface="
+        line: "interface={{ ansible_default_ipv4.interface }}"
+        create: yes
+      when: "'zeek' in inventory_hostname"
+      ignore_errors: yes
+
+    - name: Configure Suricata EVE JSON output
+      lineinfile:
+        path: /etc/suricata/suricata.yaml
+        regexp: '^\s+- eve-log:'
+        line: "  - eve-log:"
+        create: yes
+      when: "'suricata' in inventory_hostname"
+      ignore_errors: yes
+
+# ============================================================================
+# Correlation Engine Deployment
+# ============================================================================
+- name: Deploy Correlation Engine
+  hosts: correlation_servers
+  become: yes
+  tags: ["correlation"]
+
+  vars:
+    correlation_user: "correlation"
+    correlation_dir: "/opt/uztaf/correlation"
+
+  tasks:
+    - name: Create correlation user
+      user:
+        name: "{{ correlation_user }}"
+        system: yes
+        shell: /bin/bash
+        home: "{{ correlation_dir }}"
+
+    - name: Create correlation directory structure
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ correlation_user }}"
+        group: "{{ correlation_user }}"
+        mode: "0755"
+      loop:
+        - "{{ correlation_dir }}"
+        - "{{ correlation_dir }}/logs"
+        - "/var/lib/uztaf"
+
+    - name: Copy correlation engine source code
+      synchronize:
+        src: "{{ playbook_dir }}/../../src/correlation/"
+        dest: "{{ correlation_dir }}"
+        rsync_opts:
+          - "--exclude=venv"
+          - "--exclude=__pycache__"
+          - "--exclude=*.pyc"
+      delegate_to: localhost
+
+    - name: Install Python virtual environment
+      command: python3 -m venv {{ correlation_dir }}/venv
+      args:
+        creates: "{{ correlation_dir }}/venv/bin/activate"
+      become_user: "{{ correlation_user }}"
+
+    - name: Install correlation engine dependencies
+      pip:
+        requirements: "{{ correlation_dir }}/requirements.txt"
+        virtualenv: "{{ correlation_dir }}/venv"
+      when: false # Placeholder - requirements.txt needs to be created
+      ignore_errors: yes
+
+    - name: Install systemd service for correlation engine
+      copy:
+        src: "{{ playbook_dir }}/../../src/correlation/systemd/correlation.service"
+        dest: /etc/systemd/system/correlation.service
+        mode: "0644"
+      notify: reload systemd
+
+    - name: Enable and start correlation service
+      systemd:
+        name: correlation
+        enabled: yes
+        state: started
+      ignore_errors: yes
+
+# ============================================================================
+# PEP (Policy Enforcement Point) Deployment
+# ============================================================================
+- name: Deploy PEP Servers
+  hosts: pep_servers
+  become: yes
+  tags: ["pep"]
+
+  vars:
+    pep_user: "pep"
+    pep_dir: "/opt/uztaf/pep"
+
+  tasks:
+    - name: Create PEP user
+      user:
+        name: "{{ pep_user }}"
+        system: yes
+        shell: /bin/bash
+        home: "{{ pep_dir }}"
+
+    - name: Create PEP directory structure
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ pep_user }}"
+        group: "{{ pep_user }}"
+        mode: "0755"
+      loop:
+        - "{{ pep_dir }}"
+        - "{{ pep_dir }}/logs"
+
+    - name: Copy PEP source code
+      synchronize:
+        src: "{{ playbook_dir }}/../../src/pep/"
+        dest: "{{ pep_dir }}"
+        rsync_opts:
+          - "--exclude=venv"
+          - "--exclude=__pycache__"
+          - "--exclude=*.pyc"
+      delegate_to: localhost
+
+    - name: Install Python virtual environment for PEP
+      command: python3 -m venv {{ pep_dir }}/venv
+      args:
+        creates: "{{ pep_dir }}/venv/bin/activate"
+      become_user: "{{ pep_user }}"
+
+    - name: Install systemd service for PEP
+      copy:
+        src: "{{ playbook_dir }}/../../src/pep/systemd/pep.service"
+        dest: /etc/systemd/system/pep.service
+        mode: "0644"
+      notify: reload systemd
+
+    - name: Enable and start PEP service
+      systemd:
+        name: pep
+        enabled: yes
+        state: started
+      ignore_errors: yes
+
+# ============================================================================
+# Agent Deployment
+# ============================================================================
+- name: Deploy UZTAF Agents
+  hosts: agent_nodes
+  become: yes
+  tags: ["agent"]
+
+  vars:
+    agent_user: "uztaf-agent"
+    agent_dir: "/opt/uztaf/agent"
+
+  tasks:
+    - name: Install nftables
+      apt:
+        name:
+          - nftables
+        state: present
+      when: ansible_os_family == "Debian"
+
+    - name: Enable nftables service
+      systemd:
+        name: nftables
+        enabled: yes
+        state: started
+
+    - name: Create agent user
+      user:
+        name: "{{ agent_user }}"
+        system: yes
+        shell: /bin/bash
+        home: "{{ agent_dir }}"
+
+    - name: Create agent directory structure
+      file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ agent_user }}"
+        group: "{{ agent_user }}"
+        mode: "0755"
+      loop:
+        - "{{ agent_dir }}"
+        - "{{ agent_dir }}/logs"
+
+    - name: Copy agent source code
+      synchronize:
+        src: "{{ playbook_dir }}/../../src/agent/"
+        dest: "{{ agent_dir }}"
+        rsync_opts:
+          - "--exclude=venv"
+          - "--exclude=__pycache__"
+          - "--exclude=*.pyc"
+      delegate_to: localhost
+
+    - name: Install Python virtual environment for agent
+      command: python3 -m venv {{ agent_dir }}/venv
+      args:
+        creates: "{{ agent_dir }}/venv/bin/activate"
+      become_user: "{{ agent_user }}"
+
+    - name: Install systemd service for agent
+      copy:
+        src: "{{ playbook_dir }}/../../src/agent/systemd/agent.service"
+        dest: /etc/systemd/system/uztaf-agent.service
+        mode: "0644"
+      notify: reload systemd
+
+    - name: Enable and start agent service
+      systemd:
+        name: uztaf-agent
+        enabled: yes
+        state: started
+      ignore_errors: yes
+
+    - name: Configure agent with sudo permissions for nftables
+      copy:
+        content: |
+          {{ agent_user }} ALL=(ALL) NOPASSWD: /usr/sbin/nft *
+        dest: /etc/sudoers.d/uztaf-agent
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+  # ============================================================================
+  # Handlers
+  # ============================================================================
+  handlers:
+    - name: reload systemd
+      systemd:
+        daemon_reload: yes
+
+# ============================================================================
+# Post-Deployment Verification
+# ============================================================================
+- name: Verify Deployment
+  hosts: all_servers
+  become: yes
+  tags: ["verify"]
+
+  tasks:
+    - name: Check if UZTAF directories exist
+      stat:
+        path: /opt/uztaf
+      register: uztaf_dir
+
+    - name: Display verification results
+      debug:
+        msg: "UZTAF directory exists: {{ uztaf_dir.stat.exists }}"
+
+    - name: Gather service facts
+      service_facts:
+
+    - name: Display running UZTAF services
+      debug:
+        msg: "UZTAF services status: {{ ansible_facts.services | dict2items | selectattr('key', 'match', '.*uztaf.*|.*pep.*|.*correlation.*|.*agent.*') | list }}"
+      ignore_errors: yes

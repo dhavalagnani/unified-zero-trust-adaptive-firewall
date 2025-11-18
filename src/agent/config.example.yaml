@@ -1,0 +1,27 @@
+# src/agent/config.example.yaml
+#
+# Purpose: Example configuration for UZTAF agent
+# Context: Copy to config.yaml and customize
+#
+# Usage: cp config.example.yaml config.yaml
+
+agent_id: "agent-001"
+
+# WebSocket connection to correlation engine
+correlation_ws_url: "ws://correlation-server:5000/ws"
+
+# nftables configuration
+nftables_table: "filter"
+nftables_chain: "uztaf_quarantine"
+
+# Heartbeat interval (seconds)
+heartbeat_interval: 30
+
+# Log files to monitor
+watch_logs:
+  - "/var/log/auth.log"
+  - "/var/log/syslog"
+
+# Logging configuration
+log_level: "INFO"
+log_file: "/var/log/uztaf/agent.log"

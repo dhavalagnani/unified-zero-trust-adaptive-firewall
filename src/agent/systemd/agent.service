@@ -1,0 +1,20 @@
+[Unit]
+# src/agent/systemd/agent.service
+Description=UZTAF Enforcement Agent
+After=network.target
+
+[Service]
+Type=simple
+User=uztaf-agent
+Group=uztaf-agent
+WorkingDirectory=/opt/uztaf/agent
+Environment="PATH=/opt/uztaf/agent/venv/bin:/usr/local/bin:/usr/bin"
+ExecStart=/opt/uztaf/agent/venv/bin/python agent.py
+Restart=always
+RestartSec=10
+
+# Agent needs sudo for nftables
+PermissionsStartOnly=true
+
+[Install]
+WantedBy=multi-user.target

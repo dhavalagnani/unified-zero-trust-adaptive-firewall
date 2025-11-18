@@ -1,0 +1,252 @@
+# .gitignore
+#
+# Purpose: Specify files and directories that Git should ignore
+# Context: Prevents sensitive data, build artifacts, and environment-specific files
+#          from being committed to the repository
+
+# ============================================================================
+# ENVIRONMENT AND SECRETS
+# ============================================================================
+.env
+*.env
+!.env.example
+*.key
+*.pem
+*.p12
+*.jks
+secrets/
+*.secret
+
+# ============================================================================
+# PYTHON
+# ============================================================================
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+*.virtualenv
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Distribution / packaging
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+junit.xml
+
+# ============================================================================
+# IDEs AND EDITORS
+# ============================================================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.vim/
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================================================
+# OPERATING SYSTEM
+# ============================================================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+
+# ============================================================================
+# CERTIFICATES AND KEYS
+# ============================================================================
+certs/*.key
+certs/*.crt
+certs/*.pem
+certs/*.csr
+certs/private/
+*.pfx
+*.cer
+
+# ============================================================================
+# LOGS
+# ============================================================================
+logs/
+*.log
+*.log.*
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ============================================================================
+# DATABASES
+# ============================================================================
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.db-wal
+*.db-shm
+
+# ============================================================================
+# TERRAFORM
+# ============================================================================
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!terraform.tfvars.example
+.terraform.lock.hcl
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# ============================================================================
+# ANSIBLE
+# ============================================================================
+*.retry
+ansible.log
+vault-password.txt
+group_vars/*/vault.yml
+host_vars/*/vault.yml
+
+# ============================================================================
+# NODE.JS (if frontend is added later)
+# ============================================================================
+node_modules/
+npm-debug.log
+yarn.lock
+package-lock.json
+
+# ============================================================================
+# TEMPORARY AND BACKUP FILES
+# ============================================================================
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+*.rej
+*.swp
+
+# ============================================================================
+# PROJECT-SPECIFIC
+# ============================================================================
+# Runtime data
+/var/
+/run/
+*.pid
+*.sock
+
+# Test outputs
+test-results/
+test-reports/
+.pytest_cache/
+
+# Generated documentation
+docs/_build/
+docs/generated/
+site/
+
+# Compiled PlantUML diagrams
+*.png
+*.svg
+!docs/diagrams/*.png
+!docs/diagrams/*.svg
+
+# Local development configurations
+config.local.yaml
+config.local.yml
+*.local.yaml
+*.local.yml
+
+# Data directories
+data/
+*.csv
+*.json.gz
+
+# ============================================================================
+# KEYCLOAK
+# ============================================================================
+keycloak-data/
+standalone/data/
+
+# ============================================================================
+# MONITORING AND METRICS
+# ============================================================================
+prometheus-data/
+grafana-data/
+
+# ============================================================================
+# MISCELLANEOUS
+# ============================================================================
+.cache/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/

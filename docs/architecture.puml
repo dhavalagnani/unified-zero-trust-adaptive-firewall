@@ -1,0 +1,114 @@
+@startuml UZTAF Architecture
+!theme plain
+
+' Purpose: High-level architecture diagram for Unified Zero-Trust Adaptive Firewall
+' Context: Shows all major components and their interactions
+
+title Unified Zero-Trust Adaptive Firewall - Architecture
+
+' Components
+package "Client Layer" {
+    [Web Browser] as Browser
+    [Mobile App] as Mobile
+    [API Client] as API
+}
+
+package "Policy Enforcement Point (PEP)" {
+    [FastAPI Proxy] as PEP
+    [JWT Validator] as Auth
+    [Request Logger] as Logger
+}
+
+package "Identity & Access Management" {
+    database "Keycloak" as IAM {
+        [OpenID Connect]
+        [User Management]
+        [Role Management]
+    }
+}
+
+package "Backend Services" {
+    [Application Server] as App
+    [Database] as DB
+}
+
+package "Network Monitoring" {
+    [Zeek IDS] as Zeek
+    [Suricata IPS] as Suricata
+}
+
+package "Correlation Engine" {
+    [Event Processor] as Processor
+    [Pattern Matcher] as Matcher
+    [Rule Generator] as RuleGen
+    database "Event Store" as EventDB
+    [WebSocket Server] as WSServer
+}
+
+package "Enforcement Agents" {
+    [Agent 1] as Agent1
+    [Agent 2] as Agent2
+    [Agent N] as AgentN
+    [nftables Manager] as NFT
+}
+
+package "Network Infrastructure" {
+    [Managed Switch] as Switch
+    [RADIUS] as RADIUS
+}
+
+' Relationships
+Browser --> PEP : HTTPS Request
+Mobile --> PEP : HTTPS Request
+API --> PEP : API Call
+
+PEP --> Auth : Validate Token
+PEP ..> IAM : Get Public Keys
+PEP --> Logger : Log Access
+PEP --> App : Proxy Request
+
+App --> DB : Query Data
+
+Zeek --> Processor : Security Events
+Suricata --> Processor : IDS/IPS Alerts
+
+Processor --> Matcher : Check Patterns
+Processor --> EventDB : Store Events
+Matcher --> RuleGen : Trigger Rule Generation
+RuleGen --> WSServer : Distribute Rules
+
+WSServer --> Agent1 : WebSocket
+WSServer --> Agent2 : WebSocket
+WSServer --> AgentN : WebSocket
+
+Agent1 --> NFT : Apply Rules
+Agent2 --> NFT : Apply Rules
+AgentN --> NFT : Apply Rules
+
+RuleGen ..> Switch : RADIUS CoA
+RuleGen ..> RADIUS : Change Authorization
+
+note right of PEP
+  Zero-Trust Policy Enforcement
+  - Every request authenticated
+  - Fine-grained authorization
+  - Continuous monitoring
+end note
+
+note right of Processor
+  Real-Time Correlation
+  - Multi-source event fusion
+  - Temporal pattern matching
+  - Anomaly detection
+  - Dynamic rule generation
+end note
+
+note right of Agent1
+  Distributed Enforcement
+  - nftables firewall rules
+  - Network-level blocking
+  - VLAN quarantine
+  - Automatic expiration
+end note
+
+@enduml
